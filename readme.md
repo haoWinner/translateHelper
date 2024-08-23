@@ -26,6 +26,7 @@
 1. 打开 IntelliJ IDEA，进入 `File > Settings > TranslateHelper`。
 2. 在 `TranslateHelper` 设置页面中，输入您的 `appId` 和 `secretKey`。
 3. 点击 `Save` 保存设置。
+   <img src="img/3.png" >
 
 ### 如何申请 `appId` 和 `secretKey`
 
