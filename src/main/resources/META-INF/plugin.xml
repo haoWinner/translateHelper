@@ -32,7 +32,7 @@
         <li><strong>Why is the translation result not displayed?</strong> Ensure your network connection is stable during translation. Verify that you have correctly configured <code>appId</code> and <code>secretKey</code> in the <code>TranslateHelper</code> settings. If translating selected text, ensure no other shortcuts were mistakenly activated.</li>
     </ul>
     <strong>Feedback and Support</strong><br>
-    If you encounter issues or have any suggestions, please submit feedback on <a href="https://github.com/your-repo/issues">GitHub Issues</a>.<br>
+    If you encounter issues or have any suggestions, please submit feedback on <a href="https://github.com/haoWinner/translateHelper">GitHub Issues</a>.<br>
     Thank you for using the <strong>TranslateHelper</strong> plugin! We hope it will assist you in your development work.
 ]]></description>
 

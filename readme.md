@@ -57,6 +57,6 @@
 
 ## 反馈与支持
 
-如果您在使用过程中遇到问题，或有任何建议，请在 [GitHub Issues](https://github.com/your-repo/issues) 上提交反馈。
+如果您在使用过程中遇到问题，或有任何建议，请在 [GitHub Issues](https://github.com/haoWinner/translateHelper) 上提交反馈。
 
 感谢您使用 **TranslateHelper** 插件！希望它能为您的开发工作提供帮助。
