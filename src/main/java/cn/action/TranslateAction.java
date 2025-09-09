@@ -3,31 +3,42 @@ package cn.action;
 import cn.api.BaiduTranslateAPI;
 import cn.hutool.core.util.StrUtil;
 import cn.state.MySettingsState;
-import com.intellij.codeInsight.hint.HintManager;
+import com.intellij.execution.ui.ConsoleView;
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.ui.ComboBox;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.ui.popup.Balloon;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.ui.AnimatedIcon;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.JBSplitter;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
+import com.intellij.util.ui.AsyncProcessIcon;
 import org.jetbrains.annotations.NotNull;
+import org.jsoup.internal.StringUtil;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
 /**
- * @Description: 翻译入口action
+ * @Description: action
  * @Author haodd
  * @Date 2024/8/10 15:31
  * @Version 1.0
  */
 public class TranslateAction extends AnAction {
 
-    String[] items = {"zh", "en", "jp"};
+    String[] items = {"zh", "en"};
 
 
     @Override
@@ -41,31 +52,99 @@ public class TranslateAction extends AnAction {
         String appId = settings.getState().baiduAppId;
         String secretKey = settings.getState().baiduSecretKey;
 
-        Editor editor = FileEditorManager.getInstance(e.getProject()).getSelectedTextEditor();
-        String selectedText = editor.getSelectionModel().getSelectedText();
+        Editor editor = e.getData(CommonDataKeys.EDITOR);
+        String selectedText;
+        if (editor != null) {
+            selectedText = editor.getSelectionModel().getSelectedText();
+        } else {
+            selectedText = null;
+        }
 
         if (StrUtil.isNotEmpty(selectedText)) {
 
-            String translate = BaiduTranslateAPI.translate(appId, secretKey, selectedText, "en", "zh");
+//            String translate = BaiduTranslateAPI.translate(appId, secretKey, selectedText, "en", "zh");
+//            HintManager.getInstance().showInformationHint(editor, translate);
 
-            HintManager.getInstance().showInformationHint(editor, translate);
+            JLabel loadingLabel = new JLabel(AnimatedIcon.Default.INSTANCE, SwingConstants.LEFT);
+
+            Balloon balloon = JBPopupFactory.getInstance()
+                    .createBalloonBuilder(loadingLabel)
+                    .setFillColor(JBColor.background())
+                    .setHideOnClickOutside(true)
+                    .setCloseButtonEnabled(false)
+                    .createBalloon();
+
+            balloon.show(JBPopupFactory.getInstance().guessBestPopupLocation(editor), Balloon.Position.below);
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ignored) {}
+                String translate = BaiduTranslateAPI.translate(appId, secretKey, selectedText, "en", "zh");
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    balloon.hide();
+
+                    JLabel resultLabel = new JLabel(translate);
+                    Balloon resultBalloon = JBPopupFactory.getInstance()
+                            .createBalloonBuilder(resultLabel)
+                            .setFillColor(JBColor.background())
+                            .setHideOnClickOutside(true)
+                            .createBalloon();
+
+                    resultBalloon.show(JBPopupFactory.getInstance().guessBestPopupLocation(editor), Balloon.Position.below);
+                });
+            });
 
         }else {
 
             JBTextArea fromTextArea = new JBTextArea();
             JBTextArea toTextArea = new JBTextArea();
+            fromTextArea.setLineWrap(true);
+            toTextArea.setLineWrap(true);
+            toTextArea.setEditable(false);
 
-            JBSplitter splitPane = new JBSplitter(false,0.5f);
-            splitPane.setFirstComponent(fromTextArea);
-            splitPane.setSecondComponent(toTextArea);
+            JScrollPane fromScroll = new JBScrollPane(fromTextArea);
+            JScrollPane toScroll = new JBScrollPane(toTextArea);
 
-            JPanel panel = new JPanel(new BorderLayout());
-            panel.add(splitPane, BorderLayout.CENTER);
+            JBSplitter splitPane = new JBSplitter(false, 0.5f);
+            splitPane.setFirstComponent(fromScroll);
+            splitPane.setSecondComponent(toScroll);
 
             JComboBox<String> comboBoxFrom = new ComboBox<>(items);
             JComboBox<String> comboBoxTo = new ComboBox<>(items);
+            comboBoxTo.setSelectedIndex(1); // default to "en"
 
-            DialogWrapper dialog = new DialogWrapper(e.getProject(), false) {
+            JButton swapButton = new JButton(AllIcons.Actions.Refresh);
+            swapButton.addActionListener(e1 -> {
+                int fromIndex = comboBoxFrom.getSelectedIndex();
+                comboBoxFrom.setSelectedIndex(comboBoxTo.getSelectedIndex());
+                comboBoxTo.setSelectedIndex(fromIndex);
+            });
+
+            JButton translateButton = new JButton(AllIcons.Actions.Execute);
+            translateButton.addActionListener(e1 -> {
+                String text = fromTextArea.getText();
+                if (text.trim().isEmpty()) return;
+
+                String from = (String) comboBoxFrom.getSelectedItem();
+                String to = (String) comboBoxTo.getSelectedItem();
+
+                AsyncProcessIcon loadingIcon = new AsyncProcessIcon("loading...");
+                JPanel loadingPanel = new JPanel(new BorderLayout());
+                loadingPanel.add(loadingIcon, BorderLayout.CENTER);
+                splitPane.setSecondComponent(loadingPanel);
+
+                ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                    String result = BaiduTranslateAPI.translate(appId, secretKey, text, from, to);
+
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        splitPane.setSecondComponent(toScroll);
+                        toTextArea.setText(result);
+                    });
+                });
+            });
+
+            DialogWrapper dialog = new DialogWrapper(editor.getProject(), false) {
                 {
                     init();
                     setTitle("Translate");
@@ -78,46 +157,29 @@ public class TranslateAction extends AnAction {
 
                 @Override
                 protected JComponent createNorthPanel() {
+                    JPanel panel = new JPanel(new BorderLayout());
 
-                    comboBoxFrom.setSelectedItem(items[1]);
-                    comboBoxTo.setSelectedItem(items[0]);
+                    JPanel comboPanel = new JPanel(new GridLayout(1, 3));
+                    comboPanel.add(comboBoxFrom);
+                    comboPanel.add(swapButton);
+                    comboPanel.add(comboBoxTo);
 
-                    JPanel northPanel = new JPanel(new GridLayout(1, 2));
-                    northPanel.add(comboBoxFrom);
-                    northPanel.add(comboBoxTo);
-
-                    return northPanel;
-
+                    panel.add(comboPanel, BorderLayout.CENTER);
+                    return panel;
                 }
 
                 @Override
                 protected JComponent createSouthPanel() {
-                    return null;
+                    JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                    panel.add(translateButton);
+                    return panel;
                 }
             };
 
-            fromTextArea.addKeyListener(new KeyAdapter() {
-                @Override
-                public void keyPressed(KeyEvent e) {
-                    if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                        checkInputCompletion();
-                    }
-                }
-
-                private void checkInputCompletion() {
-                    String text = fromTextArea.getText();
-
-                    String from = items[comboBoxFrom.getSelectedIndex()];
-                    String to = items[comboBoxTo.getSelectedIndex()];
-                    String translate = BaiduTranslateAPI.translate(appId, secretKey, text, from, to);
-                    toTextArea.setText(translate);
-
-                }
-            });
-
             dialog.setModal(false);
-            dialog.setSize(554,362);
+            dialog.setSize(600, 400);
             dialog.show();
+
 
         }
 
